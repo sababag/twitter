@@ -1,0 +1,77 @@
+import os
+import sys
+import tweepy as tw
+import pandas as pd
+from concurrent import futures
+from google.cloud import pubsub_v1
+import json
+from datetime import datetime,timezone,time
+
+project_id = "naya-college-vm4"
+topic_id = "Tweet_project"
+
+def callback(future):
+    message_id = future.result()
+    print(message_id)
+
+
+def main(argv):
+    os.environ['JAVA_HOME'] = "/usr/java/jdk1.8.0_141-cloudera"
+    consumer_key = 'X72ximQm8eKVuWyTnbCHficdW'
+    consumer_secret = 'AGV2P0vdb8O1wB0MhvcH5DWciIcAslH4SCzE6bes6k7ePW3lbR'
+    access_token = '2613546865-BJoS2MKDpjtWjfkwPEXtYVg1Mc5vbnQURXxfVUI'
+    access_secret = 'dESjopIkjiMpGrbAxvcOqGE9xMOQ9YwVauP7huPco1x43'
+
+    # #class naya api
+    # consumer_key = '9Kul4QgCP4QE7ydJvFrQcLFa4'
+    # consumer_secret = 'ne0nWw4lmZFFhDgKcSEL9ZDtMISy6wRmfvkh8FciTRhvNPSgkz'
+    # access_token = '1153221248039755776-5UMImVxLCzTZilh8ASrYqFErjZ73tB'
+    # access_secret = 'pWhFC5Bfo2Lx6BLdh3i62vxieXxpppOWzNj4leB1jo4b1'
+
+    auth = tw.OAuthHandler(consumer_key, consumer_secret)
+    auth.set_access_token(access_token, access_secret)
+    api = tw.API(auth, wait_on_rate_limit=True)
+
+    # Define the search term and the date_since date as variables
+    search_words = "#google"
+    date_since = "2021-07-18"
+    new_search = search_words + " -filter:retweets"
+    tweets = tw.Cursor(api.search,
+                       q=new_search,
+                       lang="en",
+                       since=date_since).items(5)
+    batch_settings = pubsub_v1.types.BatchSettings(
+        max_messages=1,  # default 100
+        max_bytes=1024,  # default 1 MB
+        max_latency=10,  # default 10 ms
+    )
+    publisher = pubsub_v1.PublisherClient(batch_settings)
+    topic_path = publisher.topic_path(project_id, topic_id)
+    now = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f %Z")
+
+
+    for tweet in tweets:
+        data = {
+
+            "text":tweet.text,
+            "location":tweet.user.location,
+            "user_name":tweet.user.screen_name,
+            "insert_date": now,
+            "followers": tweet.user.followers_count
+
+        }
+        data_push = json.dumps(data)
+        try:
+            future = publisher.publish(topic_path, data_push.encode("utf-8"))
+
+            print("result:", future.result())
+            # future.add_done_callback()
+            # future.append(future)
+        except:
+            print("error")
+        #print(data)
+
+
+
+if __name__ == '__main__':
+    main(sys.argv)
