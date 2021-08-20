@@ -1,0 +1,33 @@
+#!/usr/bin/python
+
+from pyspark.sql import SparkSession
+import os
+os.environ['JAVA_HOME'] = "/usr/java/jdk1.8.0_141-cloudera"
+
+os.environ['PYSPARK_SUBMIT_ARGS'] = '--packages com.google.cloud.spark:spark-bigquery-with-dependencies_2.11:0.17.1 pyspark-shell'
+spark = SparkSession \
+  .builder \
+  .appName('spark-bigquery-demo') \
+  .getOrCreate()
+
+# Use the Cloud Storage bucket for temporary BigQuery export data used
+# by the connector.
+bucket = "gs://test_bucket555"
+spark.conf.set('temporaryGcsBucket', bucket)
+
+# Load data from BigQuery.
+words = spark.read.format('bigquery') \
+  .option('table', 'naya-college-vm4:mirroring.twitter_data') \
+  .load()
+words.createOrReplaceTempView('words')
+
+# Perform word count.
+# word_count = spark.sql(
+#     'SELECT * FROM naya-college-vm4.mirroring.twitter_data LIMIT 1000')
+words.show()
+# word_count.printSchema()
+print(words)
+# Saving the data to BigQuery
+# word_count.write.format('bigquery') \
+#   .option('table', 'wordcount_dataset.wordcount_output') \
+#   .save()
